@@ -1,9 +1,18 @@
-import { Exclude } from 'class-transformer';
+import { User } from '@prisma/client';
 
 export class UserDto {
-  @Exclude()
-  id: number;
+  uuid: string;
+  username: string;
 
-  @Exclude()
-  password: string;
+  static mapper(user: User | User[]) {
+    if (Array.isArray(user)) {
+      return user.map((v) => UserDto.mapper(v));
+    }
+
+    const userDto = new UserDto();
+    userDto.uuid = user.uuid;
+    userDto.username = user.username;
+
+    return userDto;
+  }
 }

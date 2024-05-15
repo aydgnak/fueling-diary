@@ -6,13 +6,14 @@ import {
 import { User } from '@prisma/client';
 import { PrismaService } from '@services/prisma';
 import { CreateUserDto, UpdateUserDto } from './dto';
+import { hashHelper } from './helpers';
 
 @Injectable()
 export class UserService {
   constructor(private readonly prismaService: PrismaService) {}
 
   async findAll(): Promise<User[]> {
-    return await this.prismaService.user.findMany();
+    return this.prismaService.user.findMany();
   }
 
   async findOne(uuid: string): Promise<User> {
@@ -25,20 +26,25 @@ export class UserService {
   }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
-    const checkUser: User | null = await this.prismaService.user.findUnique({
-      where: { username: createUserDto.username },
-    });
-    if (checkUser) {
-      throw new ConflictException('Username already exists');
-    }
+    await this.checkUsername(createUserDto.username);
 
-    return await this.prismaService.user.create({ data: createUserDto });
+    createUserDto.password = await hashHelper(createUserDto.password);
+
+    return this.prismaService.user.create({ data: createUserDto });
   }
 
   async update(uuid: string, updateUserDto: UpdateUserDto): Promise<User> {
     await this.findOne(uuid);
 
-    return await this.prismaService.user.update({
+    if (updateUserDto.username) {
+      await this.checkUsername(updateUserDto.username);
+    }
+
+    if (updateUserDto.password) {
+      updateUserDto.password = await hashHelper(updateUserDto.password);
+    }
+
+    return this.prismaService.user.update({
       where: { uuid },
       data: updateUserDto,
     });
@@ -47,6 +53,15 @@ export class UserService {
   async delete(uuid: string): Promise<User> {
     await this.findOne(uuid);
 
-    return await this.prismaService.user.delete({ where: { uuid } });
+    return this.prismaService.user.delete({ where: { uuid } });
+  }
+
+  async checkUsername(username: string): Promise<void> {
+    const user = await this.prismaService.user.findUnique({
+      where: { username },
+    });
+    if (user) {
+      throw new ConflictException('Username already exists');
+    }
   }
 }
